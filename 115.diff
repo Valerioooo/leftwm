@@ -1,0 +1,116 @@
+diff --git a/README.md b/README.md
+index 56f75a2..73ddf45 100644
+--- a/README.md
++++ b/README.md
+@@ -38,7 +38,7 @@ Mod + Shift + Enter => open a terminal
+ Mod + Ctrl + L => lock the screen
+ Mod + Shift + X => Exit LeftWM
+ Mod + Shift + Q => close the current window
+-Mod + Shift + R => reload LeftWM and it's config
++Mod + Shift + R => reload LeftWM and its config
+ ```
+ 
+ ### Workspaces
+diff --git a/src/command.rs b/src/command.rs
+index 4d38244..86fff5b 100644
+--- a/src/command.rs
++++ b/src/command.rs
+@@ -10,6 +10,8 @@ pub enum Command {
+     GotoTag,
+     MoveWindowUp,
+     MoveWindowDown,
++    FocusNextTag,
++    FocusPreviousTag,
+     FocusWindowUp,
+     FocusWindowDown,
+     FocusWorkspaceNext,
+diff --git a/src/handlers/command_handler.rs b/src/handlers/command_handler.rs
+index 0b1cc25..644efe4 100644
+--- a/src/handlers/command_handler.rs
++++ b/src/handlers/command_handler.rs
+@@ -26,6 +26,43 @@ pub fn process(manager: &mut Manager, command: Command, val: Option<String>) ->
+         Command::GotoTag if !is_num(&val) => false,
+         Command::GotoTag => goto_tag_handler::process(manager, to_num(&val)),
+ 
++        Command::FocusNextTag => {
++            let current = manager.focused_tag();
++            let current = current.unwrap();
++            let mut index = match manager.tags.iter().position(|x| x == &current) {
++                Some(x) => x + 1,
++                None => {
++                    return false;
++                }
++            };
++
++            index += 1;
++
++            if index > manager.tags.len() {
++                index = 1;
++            }
++
++            goto_tag_handler::process(manager, index)
++        }
++
++        Command::FocusPreviousTag => {
++            let current = manager.focused_tag();
++            let current = current.unwrap();
++            let mut index = match manager.tags.iter().position(|x| x == &current) {
++                Some(x) => x + 1,
++                None => {
++                    return false;
++                }
++            };
++
++            index -= 1;
++            if index < 1 {
++                index = manager.tags.len();
++            }
++
++            goto_tag_handler::process(manager, index)
++        }
++
+         Command::Execute if val.is_none() => false,
+         Command::Execute => {
+             use std::process::{Command, Stdio};
+diff --git a/src/handlers/external_command_handler.rs b/src/handlers/external_command_handler.rs
+index 8fae257..54862ae 100644
+--- a/src/handlers/external_command_handler.rs
++++ b/src/handlers/external_command_handler.rs
+@@ -70,6 +70,13 @@ fn process_work(manager: &mut Manager, command: ExternalCommand) -> bool {
+             return command_handler::process(manager, Command::FocusWindowDown, None);
+         }
+ 
++        ExternalCommand::FocusNextTag => {
++            return command_handler::process(manager, Command::FocusNextTag, None);
++        }
++        ExternalCommand::FocusPreviousTag => {
++            return command_handler::process(manager, Command::FocusPreviousTag, None);
++        }
++
+         ExternalCommand::FocusWorkspaceNext => {
+             return command_handler::process(manager, Command::FocusWorkspaceNext, None);
+         }
+diff --git a/src/utils/command_pipe.rs b/src/utils/command_pipe.rs
+index 6291f9d..da3fbe9 100644
+--- a/src/utils/command_pipe.rs
++++ b/src/utils/command_pipe.rs
+@@ -106,6 +106,10 @@ fn parse_command(s: String) -> std::result::Result<ExternalCommand, ()> {
+         return Ok(ExternalCommand::FocusWindowUp);
+     } else if s.starts_with("FocusWindowDown") {
+         return Ok(ExternalCommand::FocusWindowDown);
++    } else if s.starts_with("FocusNextTag") {
++        return Ok(ExternalCommand::FocusNextTag);
++    } else if s.starts_with("FocusPreviousTag") {
++        return Ok(ExternalCommand::FocusPreviousTag);
+     } else if s.starts_with("FocusWorkspaceNext") {
+         return Ok(ExternalCommand::FocusWorkspaceNext);
+     } else if s.starts_with("FocusWorkspacePrevious") {
+@@ -192,6 +196,8 @@ pub enum ExternalCommand {
+     MoveWindowDown,
+     FocusWindowUp,
+     FocusWindowDown,
++    FocusNextTag,
++    FocusPreviousTag,
+     FocusWorkspaceNext,
+     FocusWorkspacePrevious,
+     CloseWindow,
